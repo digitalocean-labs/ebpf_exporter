@@ -1,0 +1,11 @@
+[Unit]
+Description=eBPF Prometheus exporter
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/ebpf_exporter_linux_amd64 --prog-stats-mode=sample --prog-stats-sample-duration=5s --prog-stats-sample-interval=30s --map-count-entries --log-level=debug
+DynamicUser=yes
+AmbientCapabilities=CAP_SYS_ADMIN
+
+[Install]
+WantedBy=multi-user.target
