@@ -27,6 +27,7 @@ type MapCollector struct {
 	cfg MapCollectorConfig
 
 	infoDesc        *prometheus.Desc
+	maxEntriesDesc  *prometheus.Desc
 	currEntriesDesc *prometheus.Desc
 }
 
@@ -37,7 +38,13 @@ func NewMapCollector(cfg MapCollectorConfig) *MapCollector {
 		infoDesc: prometheus.NewDesc(
 			prometheus.BuildFQName(ebpfNamespace, mapSubsystem, "info"),
 			"information on currently loaded eBPF maps",
-			[]string{mapIDLabel, "map_type", "map_name", "key_size", "value_size", "max_entries", "flags"},
+			[]string{mapIDLabel, "map_type", "map_name", "key_size", "value_size", "flags"},
+			nil,
+		),
+		maxEntriesDesc: prometheus.NewDesc(
+			prometheus.BuildFQName(ebpfNamespace, mapSubsystem, "max_entries"),
+			"the configured max entries attribute of an eBPF map",
+			[]string{mapIDLabel},
 			nil,
 		),
 	}
@@ -105,8 +112,12 @@ func (mc *MapCollector) collectForMap(mapID ebpf.MapID, ch chan<- prometheus.Met
 		info.Name,
 		strconv.FormatUint(uint64(info.KeySize), 10),
 		strconv.FormatUint(uint64(info.ValueSize), 10),
-		strconv.FormatUint(uint64(info.MaxEntries), 10),
 		strconv.FormatUint(uint64(m.Flags()), 10),
+	)
+
+	ch <- prometheus.MustNewConstMetric(mc.maxEntriesDesc, prometheus.GaugeValue,
+		float64(info.MaxEntries),
+		strconv.FormatUint(uint64(mapID), 10),
 	)
 
 	if mc.currEntriesDesc != nil {
