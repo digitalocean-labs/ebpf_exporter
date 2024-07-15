@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+
+version: 2
+
+env:
+  - CGO_ENABLED=0
+
+builds:
+  - id: "ebpf_exporter"
+    main: "./cmd/ebpf_exporter/"
+    binary: "ebpf_exporter"
+    flags:
+      - "-trimpath"
+    ldflags: "-s -w"
+    goos:
+      - "linux"
+    goarch:
+      - "amd64"
+      - "386"
+      - "arm"
+      - "arm64"
