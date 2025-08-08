@@ -111,29 +111,28 @@ func (pc *ProgCollector) Collect(ch chan<- prometheus.Metric) {
 			info.Tag,
 		)
 
-		if pc.statsRunCountDesc != nil {
-			slog.Debug("collecting run count", progIDLabel, progID)
-			if runCount, ok := info.RunCount(); ok {
-				ch <- prometheus.MustNewConstMetric(pc.statsRunCountDesc, prometheus.CounterValue,
-					float64(runCount),
-					progIDStr,
-				)
-			} else {
-				slog.Error("run count could not be retrieved", progIDLabel, progID)
-				prometheus.NewInvalidMetric(pc.statsRunCountDesc, fmt.Errorf("run count could not be retrieved, stats collection may be disabled"))
+		if pc.statsRunCountDesc != nil || pc.statsRunDurationDesc != nil {
+			stats, err := prog.Stats()
+			if err != nil {
+				slog.Error("error program stats", progIDLabel, progID, "err", err)
+				prometheus.NewInvalidMetric(pc.infoDesc, fmt.Errorf("error getting program stats for ID %d: %w", progID, err))
+				continue
 			}
-		}
 
-		if pc.statsRunDurationDesc != nil {
-			slog.Debug("collecting run duration", progIDLabel, progID)
-			if runTime, ok := info.Runtime(); ok {
-				ch <- prometheus.MustNewConstMetric(pc.statsRunDurationDesc, prometheus.CounterValue,
-					float64(runTime),
+			if pc.statsRunCountDesc != nil {
+				slog.Debug("collecting run count", progIDLabel, progID)
+				ch <- prometheus.MustNewConstMetric(pc.statsRunCountDesc, prometheus.CounterValue,
+					float64(stats.RunCount),
 					progIDStr,
 				)
-			} else {
-				slog.Error("run duration could not be retrieved", progIDLabel, progID)
-				prometheus.NewInvalidMetric(pc.statsRunCountDesc, fmt.Errorf("run time could not be retrieved, stats collection may be disabled"))
+			}
+
+			if pc.statsRunDurationDesc != nil {
+				slog.Debug("collecting run duration", progIDLabel, progID)
+				ch <- prometheus.MustNewConstMetric(pc.statsRunDurationDesc, prometheus.CounterValue,
+					float64(stats.Runtime),
+					progIDStr,
+				)
 			}
 		}
 	}
