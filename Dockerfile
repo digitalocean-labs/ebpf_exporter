@@ -1,4 +1,4 @@
-FROM golang:1.22.4 AS builder
+FROM golang:1.24.6 AS builder
 
 WORKDIR /ebpf_exporter
 

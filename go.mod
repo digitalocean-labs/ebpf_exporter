@@ -1,6 +1,6 @@
 module github.com/digitalocean-labs/ebpf_exporter
 
-go 1.22
+go 1.24
 
 require (
 	github.com/cilium/ebpf v0.16.0
