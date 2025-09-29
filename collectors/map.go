@@ -120,7 +120,7 @@ func (mc *MapCollector) collectForMap(mapID ebpf.MapID, ch chan<- prometheus.Met
 		strconv.FormatUint(uint64(mapID), 10),
 	)
 
-	if mc.currEntriesDesc != nil {
+	if mc.currEntriesDesc != nil && mapTypeIsIterable(m.Type()) {
 		var count uint64
 		throwawayKey := discardEncoding{}
 		throwawayValues := make(sliceDiscardEncoding, 0)
@@ -138,6 +138,10 @@ func (mc *MapCollector) collectForMap(mapID ebpf.MapID, ch chan<- prometheus.Met
 			)
 		}
 	}
+}
+
+func mapTypeIsIterable(typ ebpf.MapType) bool {
+	return typ != ebpf.PerfEventArray
 }
 
 // Assert that discardEncoding implements the correct interfaces for map iterators.
