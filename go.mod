@@ -1,12 +1,12 @@
 module github.com/digitalocean-labs/ebpf_exporter
 
-go 1.24
+go 1.24.0
 
 require (
 	github.com/cilium/ebpf v0.19.0
 	github.com/mdlayher/sdnotify v1.0.0
 	github.com/prometheus/client_golang v1.23.0
-	golang.org/x/sys v0.35.0
+	golang.org/x/sys v0.37.0
 )
 
 require (
