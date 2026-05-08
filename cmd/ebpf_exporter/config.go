@@ -89,6 +89,8 @@ func initConfig() (config, error) {
 		"toggle collection of eBPF map metrics")
 	flag.BoolVar(&cfg.MapCollector.Config.CountEntries, "map-count-entries", false,
 		"enable counting of current number entries in all maps")
+	flag.IntVar(&cfg.MapCollector.Config.EntryCountMaxAttempts, "map-entry-count-max-attempts", 10,
+		"max full map walks per map when counting entries (retries on iteration aborted)")
 
 	flag.BoolVar(&cfg.LinkCollector.Enabled, "collector.link", true,
 		"toggle collection of eBPF link metrics")
@@ -122,6 +124,10 @@ func initConfig() (config, error) {
 		}
 	default:
 		return cfg, fmt.Errorf("invalid --prog-stats-mode value provided: %v", cfg.ProgCollector.Stats.Mode)
+	}
+
+	if cfg.MapCollector.Config.EntryCountMaxAttempts < 1 {
+		return cfg, fmt.Errorf("invalid --map-entry-count-max-attempts value provided: %v (must be >= 1)", cfg.MapCollector.Config.EntryCountMaxAttempts)
 	}
 
 	return cfg, nil
