@@ -17,17 +17,13 @@ const (
 	mapSubsystem = "map"
 	mapIDLabel   = "map_id"
 
+	mapEntryCountMaxAttempts  = 10
 	mapEntryCountRetryBackoff = 200 * time.Microsecond
 )
 
 // MapCollectorConfig defines configuration options for MapCollector.
 type MapCollectorConfig struct {
 	CountEntries bool
-
-	// EntryCountMaxAttempts is the maximum number of full map walks when counting
-	// entries. Hash maps may return ebpf.ErrIterationAborted under concurrent
-	// modification; transient aborts are retried up to this many times per scrape.
-	EntryCountMaxAttempts int
 }
 
 // MapCollector implements prometheus.Collector for collecting metrics about currently loaded eBPF maps.
@@ -129,7 +125,7 @@ func (mc *MapCollector) collectForMap(mapID ebpf.MapID, ch chan<- prometheus.Met
 	)
 
 	if mc.currEntriesDesc != nil && mapTypeIsIterable(m.Type()) {
-		maxAttempts := mc.cfg.EntryCountMaxAttempts
+		maxAttempts := mapEntryCountMaxAttempts
 		var count uint64
 		var iterErr error
 		ok := false
