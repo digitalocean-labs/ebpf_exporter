@@ -125,14 +125,11 @@ func (mc *MapCollector) collectForMap(mapID ebpf.MapID, ch chan<- prometheus.Met
 	)
 
 	if mc.currEntriesDesc != nil && mapTypeIsIterable(m.Type()) {
-		maxAttempts := mapEntryCountMaxAttempts
 		var count uint64
 		var iterErr error
-		ok := false
-		for attempt := 1; attempt <= maxAttempts; attempt++ {
-			count, iterErr = countMapEntriesOnce(m)
+		for attempt := 1; attempt <= mapEntryCountMaxAttempts; attempt++ {
+			count, iterErr = countMapEntries(m)
 			if iterErr == nil {
-				ok = true
 				break
 			}
 			if !errors.Is(iterErr, ebpf.ErrIterationAborted) {
@@ -140,25 +137,23 @@ func (mc *MapCollector) collectForMap(mapID ebpf.MapID, ch chan<- prometheus.Met
 				ch <- prometheus.NewInvalidMetric(mc.currEntriesDesc, fmt.Errorf("failed to iterate over map with ID %d: %w", mapID, iterErr))
 				return
 			}
-			slog.Debug("map entry iteration aborted, retrying", mapIDLabel, mapID, "attempt", attempt, "max_attempts", maxAttempts)
-			if attempt < maxAttempts {
-				time.Sleep(mapEntryCountRetryBackoff)
-			}
+			slog.Debug("map entry iteration aborted, retrying", mapIDLabel, mapID, "attempt", attempt, "max_attempts", mapEntryCountMaxAttempts)
+			time.Sleep(mapEntryCountRetryBackoff)
 		}
-		if ok {
+		if iterErr == nil {
 			ch <- prometheus.MustNewConstMetric(mc.currEntriesDesc, prometheus.GaugeValue,
 				float64(count),
 				strconv.FormatUint(uint64(mapID), 10),
 			)
 		} else {
-			slog.Error("error iterating over map after retries", mapIDLabel, mapID, "attempts", maxAttempts, "err", iterErr)
+			slog.Error("error iterating over map after retries", mapIDLabel, mapID, "attempts", mapEntryCountMaxAttempts, "err", iterErr)
 			ch <- prometheus.NewInvalidMetric(mc.currEntriesDesc, fmt.Errorf(
-				"failed to iterate over map with ID %d after %d attempts: %w", mapID, maxAttempts, iterErr))
+				"failed to iterate over map with ID %d after %d attempts: %w", mapID, mapEntryCountMaxAttempts, iterErr))
 		}
 	}
 }
 
-func countMapEntriesOnce(m *ebpf.Map) (uint64, error) {
+func countMapEntries(m *ebpf.Map) (uint64, error) {
 	var count uint64
 	throwawayKey := discardEncoding{}
 	throwawayValues := make(sliceDiscardEncoding, 0)
