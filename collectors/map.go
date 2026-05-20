@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/cilium/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
@@ -15,6 +16,9 @@ import (
 const (
 	mapSubsystem = "map"
 	mapIDLabel   = "map_id"
+
+	mapEntryCountMaxAttempts  = 10
+	mapEntryCountRetryBackoff = 200 * time.Microsecond
 )
 
 // MapCollectorConfig defines configuration options for MapCollector.
@@ -122,22 +126,42 @@ func (mc *MapCollector) collectForMap(mapID ebpf.MapID, ch chan<- prometheus.Met
 
 	if mc.currEntriesDesc != nil && mapTypeIsIterable(m.Type()) {
 		var count uint64
-		throwawayKey := discardEncoding{}
-		throwawayValues := make(sliceDiscardEncoding, 0)
-		iter := m.Iterate()
-		for iter.Next(&throwawayKey, &throwawayValues) {
-			count++
+		var iterErr error
+		for attempt := 1; attempt <= mapEntryCountMaxAttempts; attempt++ {
+			count, iterErr = countMapEntries(m)
+			if iterErr == nil {
+				break
+			}
+			if !errors.Is(iterErr, ebpf.ErrIterationAborted) {
+				slog.Error("error iterating over map", mapIDLabel, mapID, "err", iterErr)
+				ch <- prometheus.NewInvalidMetric(mc.currEntriesDesc, fmt.Errorf("failed to iterate over map with ID %d: %w", mapID, iterErr))
+				return
+			}
+			slog.Debug("map entry iteration aborted, retrying", mapIDLabel, mapID, "attempt", attempt, "max_attempts", mapEntryCountMaxAttempts)
+			time.Sleep(mapEntryCountRetryBackoff)
 		}
-		if err := iter.Err(); err != nil {
-			slog.Error("error iterating over map", mapIDLabel, mapID, "err", err)
-			ch <- prometheus.NewInvalidMetric(mc.currEntriesDesc, fmt.Errorf("failed to iterate over map with ID %d: %v", mapID, err))
-		} else {
+		if iterErr == nil {
 			ch <- prometheus.MustNewConstMetric(mc.currEntriesDesc, prometheus.GaugeValue,
 				float64(count),
 				strconv.FormatUint(uint64(mapID), 10),
 			)
+		} else {
+			slog.Error("error iterating over map after retries", mapIDLabel, mapID, "attempts", mapEntryCountMaxAttempts, "err", iterErr)
+			ch <- prometheus.NewInvalidMetric(mc.currEntriesDesc, fmt.Errorf(
+				"failed to iterate over map with ID %d after %d attempts: %w", mapID, mapEntryCountMaxAttempts, iterErr))
 		}
 	}
+}
+
+func countMapEntries(m *ebpf.Map) (uint64, error) {
+	var count uint64
+	throwawayKey := discardEncoding{}
+	throwawayValues := make(sliceDiscardEncoding, 0)
+	iter := m.Iterate()
+	for iter.Next(&throwawayKey, &throwawayValues) {
+		count++
+	}
+	return count, iter.Err()
 }
 
 func mapTypeIsIterable(typ ebpf.MapType) bool {
